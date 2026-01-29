@@ -1,0 +1,12 @@
+# Ambiente Virtual
+venv/
+__pycache__/
+
+# Arquivos de Dados (Não é subir dados sensíveis ou gigantes)
+*.zip
+*.csv
+*.xlsx
+downloads_ans/
+
+# Configurações do VS Code
+.vscode/
