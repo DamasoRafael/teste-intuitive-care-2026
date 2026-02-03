@@ -1,9 +1,9 @@
-import os
-import pandas as pd
-import sys
-import requests
-import zipfile
-import io
+import os # "diretório". Uso para manipular caminhos de arquivos e pastas
+import pandas as pd # "planilhas". Uso para manipular dados tabulares
+import sys # "sistema". Uso para manipular o path de importação
+import requests # "navegador" do código. Acessa sites. Uso para bater na porta do site e pedir o arquivo
+import zipfile # "tesouras". Ao inves de salvar arquivo .zip no disco, abre diretamente na ram
+import io # "tesouras". Ao inves de salvar arquivo .zip no disco, abre diretamente na ram
 import urllib3 # <--- Mudança aqui: Importação direta e limpa
 
 # Adiciona o diretório atual ao path para conseguir importar o outro arquivo
