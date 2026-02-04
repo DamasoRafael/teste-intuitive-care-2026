@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Intuitive Care - Teste Rafael Damaso</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        .card-header {
+            background-color: #0d6efd;
+            color: white;
+            font-weight: bold;
+        }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.8);
+            z-index: 9999;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="app" class="container py-4">
+
+        <div v-if="loading" class="loading-overlay">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Carregando...</span>
+            </div>
+        </div>
+
+        <header class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-2">
+            <h1 class="h3 text-primary">Intuitive Care <small class="text-muted fs-6">Teste Técnico</small></h1>
+            <span class="badge bg-secondary">Candidato: Rafael Damaso</span>
+        </header>
+
+        <div v-if="view === 'dashboard'">
+
+            <div class="row mb-4">
+                <div class="col-md-8">
+                    <div class="card h-100 shadow-sm">
+                        <div class="card-header">Distribuição de Despesas por UF</div>
+                        <div class="card-body">
+                            <canvas id="graficoUF"></canvas>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card h-100 shadow-sm border-primary">
+                        <div class="card-header bg-primary">Resumo Geral</div>
+                        <div class="card-body">
+                            <h5 class="card-title">Total de Despesas</h5>
+                            <p class="display-6 text-primary fw-bold">R$ {{ formatarMoeda(stats.total_geral) }}</p>
+                            <hr>
+                            <h6 class="text-muted">Média por Trimestre</h6>
+                            <p class="fs-5">R$ {{ formatarMoeda(stats.media_geral) }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow-sm">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>Lista de Operadoras</span>
+                    <div class="input-group input-group-sm w-50">
+                        <input type="text" class="form-control" placeholder="Buscar por Nome ou CNPJ..."
+                            v-model="buscaTermo" @keyup.enter="buscarOperadoras">
+                        <button class="btn btn-light" type="button" @click="buscarOperadoras">🔍 Buscar</button>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-hover table-striped mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Registro ANS</th>
+                                <th>CNPJ</th>
+                                <th>Razão Social</th>
+                                <th>UF</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="op in operadoras" :key="op.registro_ans">
+                                <td>{{ op.registro_ans }}</td>
+                                <td>{{ op.cnpj }}</td>
+                                <td>{{ op.razao_social }}</td>
+                                <td>{{ op.uf }}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary" @click="abrirDetalhes(op)">
+                                        Ver Detalhes
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="card-footer d-flex justify-content-between align-items-center">
+                    <button class="btn btn-sm btn-secondary" :disabled="page === 1"
+                        @click="mudarPagina(-1)">Anterior</button>
+                    <span>Página {{ page }} de {{ totalPaginas }}</span>
+                    <button class="btn btn-sm btn-secondary" :disabled="page >= totalPaginas"
+                        @click="mudarPagina(1)">Próxima</button>
+                </div>
+            </div>
+        </div>
+
+        <div v-else-if="view === 'details'" class="animate__animated animate__fadeIn">
+            <button class="btn btn-secondary mb-3" @click="view = 'dashboard'">← Voltar para Dashboard</button>
+
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-success">
+                    {{ operadoraSelecionada.razao_social }}
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4"><strong>CNPJ:</strong> {{ operadoraSelecionada.cnpj }}</div>
+                        <div class="col-md-4"><strong>Registro ANS:</strong> {{ operadoraSelecionada.registro_ans }}
+                        </div>
+                        <div class="col-md-4"><strong>UF:</strong> {{ operadoraSelecionada.uf }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <h4 class="mb-3">Histórico de Despesas</h4>
+            <table class="table table-bordered">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Ano</th>
+                        <th>Trimestre</th>
+                        <th>Descrição</th>
+                        <th>Valor</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-if="historicoDespesas.length === 0">
+                        <td colspan="4" class="text-center text-muted">Nenhum registro encontrado.</td>
+                    </tr>
+                    <tr v-for="h in historicoDespesas" :key="h.id">
+                        <td>{{ h.ano }}</td>
+                        <td>{{ h.trimestre }}</td>
+                        <td>{{ h.descricao }}</td>
+                        <td class="text-end">R$ {{ formatarMoeda(h.valor) }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+    </div>
+
+    <script>
+        const { createApp, ref, onMounted, computed } = Vue;
+
+        createApp({
+            setup() {
+                // Estado da Aplicação
+                const view = ref('dashboard'); // Controla qual tela aparece
+                const operadoras = ref([]);
+                const stats = ref({ total_geral: 0, media_geral: 0 });
+                const page = ref(1);
+                const totalRegistros = ref(0);
+                const buscaTermo = ref('');
+                const loading = ref(false);
+
+                // Detalhes
+                const operadoraSelecionada = ref(null);
+                const historicoDespesas = ref([]);
+
+                // API URL (Ajuste se mudar a porta do FastAPI)
+                const API_URL = 'http://127.0.0.1:8000/api';
+
+                // Formatador de Moeda
+                const formatarMoeda = (valor) => {
+                    if (!valor) return '0,00';
+                    return parseFloat(valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                };
+
+                // Carregar Dados Iniciais
+                const carregarDashboard = async () => {
+                    loading.value = true;
+                    try {
+                        // 1. Pega Estatísticas para o Gráfico
+                        const resStats = await axios.get(`${API_URL}/estatisticas`);
+                        stats.value = resStats.data;
+                        renderizarGrafico(resStats.data.distribuicao_uf);
+
+                        // 2. Pega Lista de Operadoras
+                        await buscarOperadoras();
+                    } catch (error) {
+                        alert('Erro ao conectar com a API. Verifique se o backend está rodando.');
+                        console.error(error);
+                    } finally {
+                        loading.value = false;
+                    }
+                };
+
+                const buscarOperadoras = async () => {
+                    loading.value = true;
+                    try {
+                        const params = { page: page.value, limit: 10 };
+                        if (buscaTermo.value) params.search = buscaTermo.value;
+
+                        const res = await axios.get(`${API_URL}/operadoras`, { params });
+                        operadoras.value = res.data.data;
+                        totalRegistros.value = res.data.total;
+                    } catch (error) {
+                        console.error("Erro ao buscar operadoras", error);
+                    } finally {
+                        loading.value = false;
+                    }
+                };
+
+                const mudarPagina = (delta) => {
+                    page.value += delta;
+                    buscarOperadoras();
+                };
+
+                // Abrir Detalhes
+                const abrirDetalhes = async (op) => {
+                    loading.value = true;
+                    operadoraSelecionada.value = op;
+                    try {
+                        const res = await axios.get(`${API_URL}/operadoras/${op.registro_ans}/despesas`);
+                        historicoDespesas.value = res.data;
+                        view.value = 'details'; // Troca a tela
+                    } catch (error) {
+                        alert("Erro ao carregar detalhes");
+                    } finally {
+                        loading.value = false;
+                    }
+                };
+
+                // Gráfico com Chart.js
+                let chartInstance = null;
+                const renderizarGrafico = (dadosUF) => {
+                    const ctx = document.getElementById('graficoUF');
+                    if (!ctx) return; // Proteção
+
+                    // Destroi gráfico anterior se existir
+                    if (chartInstance) chartInstance.destroy();
+
+                    chartInstance = new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: dadosUF.map(d => d.uf),
+                            datasets: [{
+                                label: 'Despesas por Estado (R$)',
+                                data: dadosUF.map(d => d.total),
+                                backgroundColor: '#0d6efd'
+                            }]
+                        },
+                        options: { responsive: true }
+                    });
+                };
+
+                const totalPaginas = computed(() => Math.ceil(totalRegistros.value / 10));
+
+                onMounted(() => {
+                    carregarDashboard();
+                });
+
+                return {
+                    view, operadoras, stats, page, totalPaginas, buscaTermo,
+                    loading, operadoraSelecionada, historicoDespesas,
+                    formatarMoeda, buscarOperadoras, mudarPagina, abrirDetalhes
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+
+</html>
